@@ -1,0 +1,196 @@
+import mcpi.minecraft as minecraft
+import mcpi.block as block
+from mcpi.vec3 import Vec3
+import time
+import random
+
+OFFSET = 2
+ROWS = 3
+COLUMNS = 3
+
+done = False
+turn = False
+turncounter = 0
+mc = minecraft.Minecraft.create()
+board = []
+
+def clearArea(radius):
+    position = mc.player.getTilePos()
+    mc.setBlocks(position.x - radius,
+                 position.y,
+                 position.z - radius,
+                 position.x + radius,
+                 position.y + radius,
+                 position.z + radius,
+                 block.AIR)
+
+def placeBoard():
+    global board
+
+    board = [ [ {}, {}, {} ],
+              [ {}, {}, {} ],
+              [ {}, {}, {}, ] ]
+
+
+    pos = mc.player.getTilePos()
+
+    for row in range(ROWS):
+        for col in range(COLUMNS):
+            blockToPlace = Vec3(pos.x + col, pos.y + OFFSET - row, pos.z + OFFSET)
+            board[row][col]["coordinate"] = blockToPlace
+            board[row][col]["playerValue"] = 0
+            mc.setBlock(blockToPlace, block.GLASS)
+
+def goingFirst():
+    global turn
+    first = random.randint(1,2)
+    if first == 1:
+        turn = False
+        mc.postToChat("Red Wool goes first")
+    else:
+        turn = True
+        mc.postToChat("Blue Wool goes first")
+
+
+def placeBlock():
+    global turn, turncounter
+    events = mc.events.pollBlockHits() #
+    for e in events:
+        pos = e.pos
+        for row in range(ROWS):
+            for col in range(COLUMNS):
+                if board[row][col]["coordinate"] == pos and mc.getBlock(pos.x, pos.y, pos.z) == block.GLASS.id and not turn:
+                    board[row][col]["playerValue"] = -1
+                    mc.setBlock(pos.x, pos.y, pos.z, block.RED_WOOL)
+                    mc.postToChat("It's Blue's Turn")
+                    turncounter += 1
+                    turn = True
+                elif board[row][col]["coordinate"] == pos and mc.getBlock(pos.x, pos.y, pos.z) == block.GLASS.id and turn:
+                    board[row][col]["playerValue"] = 1
+                    mc.setBlock(pos.x, pos.y, pos.z, block.BLUE_WOOL)
+                    mc.postToChat("It's Red's Turn")
+                    turncounter += 1
+                    turn = False
+
+def checkWin():
+    global done
+    rowTotals = [0,0,0]
+    colTotals = [0,0,0]
+    diagonal1 = 0
+    diagonal2 = 0
+    win = False
+
+    # build the data to see if there is a win
+    for row in range(ROWS):
+        for col in range(COLUMNS):
+            rowTotals[row] += board[row][col]["playerValue"]
+            colTotals[col] += board[row][col]["playerValue"]
+            if row == col:
+                diagonal1 += board[row][col]["playerValue"]
+            if row + col == 2:
+                diagonal2 += board[row][col]["playerValue"]
+
+    for total in rowTotals:
+        if abs(total) == 3:
+            if total >= 0:
+                mc.postToChat("----> Blue Wool Wins <----")
+                done = True
+                win = True
+            else:
+                mc.postToChat("----> Red Wool Wins <----")
+                done = True
+                win = True
+
+    for total in colTotals:
+        if abs(total) == 3:
+            if total >= 0:
+                mc.postToChat("----> Blue Wool Wins <----")
+                done = True
+                win = True
+            else:
+                mc.postToChat("----> Red Wool Wins <----")
+                done = True
+                win = True
+
+    if abs(diagonal1) == 3:
+        if diagonal1 >= 0:
+            mc.postToChat("----> Blue Wool Wins <----")
+            done = True
+            win = True
+        else:
+            mc.postToChat("----> Red Wool Wins <----")
+            done = True
+            win = True
+
+    if abs(diagonal2) == 3:
+        if diagonal2 >= 0:
+            mc.postToChat("----> Blue Wool Wins <----")
+            done = True
+            win = True
+        else:
+            mc.postToChat("----> Red Wool Wins <----")
+            done = True
+            win = True
+
+    if turncounter == 9 and not win:
+        mc.postToChat("----> It's a tie! <----")
+        done = True
+
+def breakBlock():
+    global done, turn
+    for row in range(ROWS):
+        for col in range(COLUMNS):
+            if mc.getBlock(board[row][col]["coordinate"]) == block.AIR.id:
+                if board[row][col]["playerValue"] == -1:
+                    mc.setBlock(board[row][col]["coordinate"], block.RED_WOOL)
+                if board[row][col]["playerValue"] == 1:
+                    mc.setBlock(board[row][col]["coordinate"], block.BLUE_WOOL)
+                if board[row][col]["playerValue"] == 0:
+                    mc.setBlock(board[row][col]["coordinate"], block.GLASS)
+
+def replay():
+    GREEN = block.GREEN_WOOL
+    RED = block.RED_WOOL
+    redPos = mc.player.getTilePos()
+    greenPos = mc.player.getTilePos()
+    cool = False
+
+    mc.setBlock(redPos.x + 1, redPos.y, redPos.z, RED)
+    mc.setBlock(greenPos.x - 1, greenPos.y, greenPos.z, GREEN)
+
+    def clearReplay():
+        mc.setBlock(redPos.x + 1, redPos.y, redPos.z, block.AIR)
+        mc.setBlock(greenPos.x - 1, greenPos.y, greenPos.z, block.AIR)
+
+    def checkReplayHit():
+        global cool
+        events = mc.events.pollBlockHits()
+        for e in events:
+            pos = e.pos
+            if pos.x == redPos.x + 1 and pos.y == redPos.y and pos.z == redPos.z:
+                clearReplay()
+                mc.postToChat("Close game")
+                cool = True
+
+            elif pos.x == greenPos.x - 1 and pos.y == greenPos.y and pos.z == greenPos.z:
+                mc.postToChat("Play again")
+                clearReplay()
+
+    while not cool:
+        checkReplayHit()
+
+    else:
+        mc.postToChat("thanks for playing")
+
+
+
+clearArea(30)
+placeBoard()
+goingFirst()
+while not done:
+    placeBlock()
+    checkWin()
+    breakBlock()
+
+else:
+    replay()
